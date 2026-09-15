@@ -21,6 +21,8 @@ Training is configured for CPU:
 - 3 epochs (sufficient for fine-tuning a pre-trained model)
 - FP32 (no mixed precision -- CPU doesn't support FP16 well)
 
+Run with --smoke for a fast end-to-end verification (~500 samples, 1 epoch).
+
 Outputs:
 - Saved model: models/saved/category_transformer/
 - Classification report + confusion matrix comparison
@@ -29,6 +31,7 @@ Outputs:
 import os
 import sys
 import json
+import argparse
 import numpy as np
 import matplotlib
 matplotlib.use("Agg")
@@ -42,6 +45,8 @@ from sklearn.metrics import (
 )
 
 import torch
+import transformers
+from packaging import version
 from transformers import (
     DistilBertTokenizerFast,
     DistilBertForSequenceClassification,
@@ -90,8 +95,49 @@ def compute_metrics(eval_pred):
     }
 
 
-def train_transformer():
-    """Fine-tune DistilBERT for ticket category classification."""
+def build_training_args(output_dir, num_train_epochs=3, warmup_steps=100):
+    """Create TrainingArguments with kwarg names compatible with the installed transformers.
+
+    transformers 4.41 renamed evaluation_strategy -> eval_strategy and
+    deprecated no_cuda in favor of use_cpu, so pick names based on version.
+    """
+    kwargs = dict(
+        output_dir=output_dir,
+        num_train_epochs=num_train_epochs,  # 3 is enough to fine-tune a pre-trained model
+        per_device_train_batch_size=8,      # small batch for CPU memory
+        per_device_eval_batch_size=16,
+        warmup_steps=warmup_steps,          # gradual learning rate warmup
+        weight_decay=0.01,                  # L2 regularization
+        logging_steps=50,
+        save_strategy="epoch",
+        load_best_model_at_end=True,        # keep best checkpoint
+        metric_for_best_model="accuracy",
+        report_to="none",                   # disable wandb/tensorboard
+    )
+    if version.parse(transformers.__version__) >= version.parse("4.41"):
+        kwargs["eval_strategy"] = "epoch"
+        kwargs["use_cpu"] = True
+    else:
+        kwargs["evaluation_strategy"] = "epoch"
+        kwargs["no_cuda"] = True
+    return TrainingArguments(**kwargs)
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Fine-tune DistilBERT for ticket classification")
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Quick verification run: 500 train / 100 test samples, 1 epoch",
+    )
+    return parser.parse_args()
+
+
+def train_transformer(smoke=False):
+    """Fine-tune DistilBERT for ticket category classification.
+
+    smoke=True runs a small-subset, 1-epoch pass to verify the pipeline end-to-end.
+    """
 
     # -- 1. Load and prepare data --
     df = load_dataset()
@@ -104,6 +150,13 @@ def train_transformer():
     y_test = data["y_test"]
     label_names = data["label_names"]
     num_labels = len(label_names)
+
+    if smoke:
+        X_train_raw = X_train_raw[:500]
+        y_train = y_train[:500]
+        X_test_raw = X_test_raw[:100]
+        y_test = y_test[:100]
+        print("\n[SMOKE] Subset: 500 train / 100 test samples, 1 epoch")
 
     # -- 2. Tokenize with DistilBERT tokenizer --
     print("\n[...] Tokenizing with DistilBERT tokenizer...")
@@ -127,20 +180,10 @@ def train_transformer():
     save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "saved", "category_transformer")
     os.makedirs(save_dir, exist_ok=True)
 
-    training_args = TrainingArguments(
-        output_dir=save_dir,
-        num_train_epochs=3,            # enough for fine-tuning pre-trained model
-        per_device_train_batch_size=8, # small batch for CPU memory
-        per_device_eval_batch_size=16,
-        warmup_steps=100,              # gradual learning rate warmup
-        weight_decay=0.01,             # L2 regularization
-        logging_steps=50,
-        eval_strategy="epoch",         # evaluate after each epoch
-        save_strategy="epoch",
-        load_best_model_at_end=True,   # keep best checkpoint
-        metric_for_best_model="accuracy",
-        report_to="none",             # disable wandb/tensorboard
-        no_cuda=True,                  # force CPU training
+    training_args = build_training_args(
+        save_dir,
+        num_train_epochs=1 if smoke else 3,
+        warmup_steps=10 if smoke else 100,
     )
 
     # -- 5. Train --
@@ -152,7 +195,8 @@ def train_transformer():
         compute_metrics=compute_metrics,
     )
 
-    print("\n[...] Fine-tuning DistilBERT (this may take a while on CPU)...")
+    print("\n[...] Fine-tuning DistilBERT (this may take a while on CPU)..." if not smoke
+          else "\n[...] Fine-tuning DistilBERT (smoke run)...", flush=True)
     trainer.train()
 
     # -- 6. Evaluate --
@@ -199,7 +243,10 @@ def train_transformer():
     with open(os.path.join(save_dir, "label_map.json"), "w") as f:
         json.dump(label_map, f, indent=2)
 
-    print(f"[OK] Transformer model saved -> {save_dir}/")
+    if smoke:
+        print("[SMOKE] Saved smoke-run artifacts (weak model) -- rerun without --smoke to overwrite with a full training run.")
+    else:
+        print(f"[OK] Transformer model saved -> {save_dir}/")
 
     # -- 9. Print comparison summary --
     print("\n" + "=" * 60)
@@ -228,4 +275,5 @@ def train_transformer():
 
 
 if __name__ == "__main__":
-    train_transformer()
+    args = parse_args()
+    train_transformer(smoke=args.smoke)

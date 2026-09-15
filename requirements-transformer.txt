@@ -1,0 +1,11 @@
+# Optional: DistilBERT fine-tuning leg (models/train_transformer.py)
+# Verified on Python 3.13 (2026-09). Large download (~200 MB CPU wheel for torch).
+# The API and the rest of the pipeline work without these -- install only if you
+# want to run the transformer comparison:
+#
+#   pip install -r requirements-transformer.txt
+
+torch==2.14.0
+transformers==5.17.0
+accelerate==1.15.0
+packaging>=24

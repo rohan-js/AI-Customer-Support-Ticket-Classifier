@@ -46,7 +46,7 @@ def train_baseline():
     print(f"    Feature matrix: {X_train_tfidf.shape}")
 
     print("\n[...] Training Logistic Regression classifier...")
-    model = LogisticRegression(max_iter=1000, class_weight="balanced", random_state=42, n_jobs=-1)
+    model = LogisticRegression(max_iter=1000, class_weight="balanced", random_state=42)
     model.fit(X_train_tfidf, y_train)
 
     y_pred = model.predict(X_test_tfidf)

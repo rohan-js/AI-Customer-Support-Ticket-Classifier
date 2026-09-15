@@ -10,6 +10,7 @@ build/
 
 # Virtual environments
 venv/
+.venv/
 env/
 .env/
 
@@ -26,6 +27,7 @@ data/*.png
 # IDE
 .vscode/
 .idea/
+.zcode/
 *.swp
 *.swo
 

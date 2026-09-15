@@ -17,11 +17,24 @@ from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 from nltk.tokenize import word_tokenize
 
-# Download required NLTK data (one-time, cached after first run)
-nltk.download("punkt", quiet=True)
-nltk.download("punkt_tab", quiet=True)
-nltk.download("stopwords", quiet=True)
-nltk.download("wordnet", quiet=True)
+# Required NLTK data (one-time download, cached after first run)
+_REQUIRED_NLTK_PACKAGES = ["punkt", "punkt_tab", "stopwords", "wordnet"]
+
+
+def _ensure_nltk_data():
+    """Download NLTK data, failing with an actionable message if unavailable."""
+    for package in _REQUIRED_NLTK_PACKAGES:
+        try:
+            nltk.download(package, quiet=True)
+        except Exception as exc:
+            raise RuntimeError(
+                f"Could not download NLTK data '{package}' ({exc}). "
+                "An internet connection is required on the first run; the data is "
+                "cached afterwards and no connection is needed again."
+            ) from exc
+
+
+_ensure_nltk_data()
 
 # Initialize once at module level to avoid repeated object creation
 _lemmatizer = WordNetLemmatizer()

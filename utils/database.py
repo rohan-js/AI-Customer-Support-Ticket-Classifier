@@ -23,16 +23,17 @@ DB_PATH = os.path.join(
 )
 
 
-def get_connection():
-    conn = sqlite3.connect(DB_PATH)
+def get_connection(db_path=None):
+    conn = sqlite3.connect(db_path or DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
 
 
-def init_db():
+def init_db(db_path=None):
     """Initialize the database schema. Safe to call multiple times."""
-    os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-    conn = get_connection()
+    target = db_path or DB_PATH
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    conn = get_connection(target)
     cursor = conn.cursor()
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS predictions (
@@ -49,9 +50,9 @@ def init_db():
     print(f"[OK] Database initialized -> {DB_PATH}")
 
 
-def log_prediction(text, category, priority, reply, timestamp):
+def log_prediction(text, category, priority, reply, timestamp, db_path=None):
     """Log a prediction to the database."""
-    conn = get_connection()
+    conn = get_connection(db_path)
     cursor = conn.cursor()
     cursor.execute(
         "INSERT INTO predictions (text, category, priority, reply, timestamp) VALUES (?, ?, ?, ?, ?)",
@@ -61,9 +62,9 @@ def log_prediction(text, category, priority, reply, timestamp):
     conn.close()
 
 
-def get_recent_predictions(limit=20):
+def get_recent_predictions(limit=20, db_path=None):
     """Retrieve the most recent predictions."""
-    conn = get_connection()
+    conn = get_connection(db_path)
     cursor = conn.cursor()
     cursor.execute(
         "SELECT id, text, category, priority, timestamp FROM predictions ORDER BY id DESC LIMIT ?",
@@ -74,9 +75,9 @@ def get_recent_predictions(limit=20):
     return [dict(row) for row in rows]
 
 
-def get_analytics_summary():
+def get_analytics_summary(db_path=None):
     """Get aggregate analytics from logged predictions."""
-    conn = get_connection()
+    conn = get_connection(db_path)
     cursor = conn.cursor()
 
     cursor.execute("SELECT COUNT(*) as total FROM predictions")

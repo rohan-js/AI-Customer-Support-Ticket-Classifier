@@ -1,24 +1,25 @@
+# Core pipeline -- verified on Python 3.13 (2026-09).
+# The optional DistilBERT training leg lives in requirements-transformer.txt.
+
 # Core ML
-scikit-learn==1.3.2
-pandas==2.1.4
-numpy==1.26.2
-joblib==1.3.2
+scikit-learn==1.9.1
+pandas==3.0.5
+numpy==2.5.3
+joblib==1.6.0
 
 # NLP
-nltk==3.8.1
-transformers==4.36.2
-torch==2.1.2
-datasets==2.16.1
-accelerate==0.25.0
+nltk==3.10.3
 
 # API
-fastapi==0.108.0
-uvicorn==0.25.0
-pydantic==2.5.3
+fastapi==0.141.1
+uvicorn==0.53.0
+pydantic==2.13.5
+httpx==0.28.1  # required by fastapi.testclient (tests only)
 
 # Visualization
-matplotlib==3.8.2
-seaborn==0.13.0
+matplotlib==3.11.2
+seaborn==0.13.2
 
-# Utilities
-tqdm==4.66.1
+# Utilities / test runner
+tqdm==4.70.1
+pytest==9.1.1
