@@ -183,7 +183,7 @@ graceful-degradation path when model files are missing).
 |-------|------|-----------|---------------|-------|
 | **Baseline** | Category Classification | TF-IDF + Logistic Regression | **100%** | Synthetic templates are keyword-separable |
 | **Priority** | Priority Prediction | TF-IDF + Random Forest | **87%** | Learns real signals ("hacked account" -> Urgent); ~85% label-noise ceiling |
-| **Transformer** | Category Classification | DistilBERT Fine-tuned | ~baseline | Optional comparison leg; cannot beat a perfect baseline |
+| **Transformer** | Category Classification | DistilBERT Fine-tuned | **100%** | ~38 min on CPU (3 epochs); matches the baseline exactly -- the synthetic task is too easy for a gap to show |
 | **Reply** | Auto-Reply Generation | Template + Rule-Based | deterministic | Keyword-aware, priority-aware |
 
 Honest caveats: because the dataset is synthetic, category separation is
