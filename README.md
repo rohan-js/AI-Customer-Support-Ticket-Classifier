@@ -1,10 +1,10 @@
 # AI Customer Support Ticket Classification & Auto-Reply System
 
-A production-ready ML system that automatically classifies customer support tickets, predicts priority levels, and generates intelligent auto-replies -- all running locally on CPU without any paid APIs.
+An end-to-end ML system that automatically classifies customer support tickets, predicts priority levels, and generates intelligent auto-replies -- all running locally on CPU without any paid APIs. Built as a portfolio/educational project demonstrating the full train -> serve -> log -> BI pipeline.
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue?logo=python)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.108-green?logo=fastapi)
-![scikit-learn](https://img.shields.io/badge/scikit--learn-1.3-orange?logo=scikit-learn)
+![Python](https://img.shields.io/badge/Python-3.13-blue?logo=python)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.141-green?logo=fastapi)
+![scikit-learn](https://img.shields.io/badge/scikit--learn-1.9-orange?logo=scikit-learn)
 ![HuggingFace](https://img.shields.io/badge/HuggingFace-Transformers-yellow?logo=huggingface)
 
 ---
@@ -62,13 +62,13 @@ A production-ready ML system that automatically classifies customer support tick
 ```
 ├── data/
 │   ├── generate_dataset.py      # Synthetic data generator (5K tickets)
-│   ├── tickets.csv              # Generated dataset
-│   └── analytics_export.csv     # Power BI export
+│   ├── tickets.csv              # Generated dataset (gitignored)
+│   └── analytics_export.csv     # Power BI export (gitignored)
 ├── models/
 │   ├── train_baseline.py        # TF-IDF + Logistic Regression
-│   ├── train_transformer.py     # DistilBERT fine-tuning
+│   ├── train_transformer.py     # DistilBERT fine-tuning (optional)
 │   ├── train_priority.py        # Random Forest priority model
-│   └── saved/                   # Trained model artifacts
+│   └── saved/                   # Trained model artifacts (gitignored)
 ├── api/
 │   └── main.py                  # FastAPI REST service
 ├── utils/
@@ -77,9 +77,12 @@ A production-ready ML system that automatically classifies customer support tick
 │   ├── reply_generator.py       # Template-based auto-reply
 │   ├── analytics.py             # Analytics & visualization
 │   └── database.py              # SQLite prediction logging
+├── tests/                       # Pytest suite
+├── conftest.py                  # Makes project root importable in tests
 ├── images/                      # Charts for README
 ├── notebooks/                   # Jupyter exploration (optional)
-├── requirements.txt
+├── requirements.txt             # Core pipeline dependencies
+├── requirements-transformer.txt # Optional DistilBERT training extras
 └── README.md
 ```
 
@@ -87,34 +90,53 @@ A production-ready ML system that automatically classifies customer support tick
 
 ## Quick Start
 
-### 1. Install Dependencies
+### 1. Create an Environment (Python 3.13)
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # macOS / Linux
+```
+
+### 2. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Generate Dataset
+Optional, only for the DistilBERT training leg (large torch download):
+
+```bash
+pip install -r requirements-transformer.txt
+```
+
+### 3. Generate Dataset
 
 ```bash
 python data/generate_dataset.py
 ```
 
-This creates `data/tickets.csv` with 5,000 synthetic support tickets across 6 categories.
+This creates `data/tickets.csv` with 5,000 synthetic support tickets across 6 categories. Priorities are **derived from ticket content** (a security breach is Urgent, a feature request is Low), with 15% of labels shifted one level to simulate human labeling variance.
 
-### 3. Train Models
+### 4. Train Models
 
 ```bash
-# Baseline category classifier (fast -- ~10 seconds)
+# Baseline category classifier (fast -- seconds)
 python models/train_baseline.py
 
-# Priority prediction model (fast -- ~15 seconds)
+# Priority prediction model (fast -- under a minute)
 python models/train_priority.py
 
-# Transformer model (optional -- slow on CPU, ~30-60 min)
-python models/train_transformer.py
+# Transformer model (optional -- slow on CPU)
+python models/train_transformer.py --smoke   # ~5 min verification run
+python models/train_transformer.py           # full fine-tune
 ```
 
-### 4. Generate Analytics
+Note: the first run of the preprocessing pipeline downloads NLTK
+corpora (`punkt`, `punkt_tab`, `stopwords`, `wordnet`); afterwards they
+are cached locally and no network is needed.
+
+### 5. Generate Analytics
 
 ```bash
 python utils/analytics.py
@@ -122,13 +144,13 @@ python utils/analytics.py
 
 Produces charts and exports `data/analytics_export.csv` for Power BI.
 
-### 5. Start API Server
+### 6. Start API Server
 
 ```bash
 uvicorn api.main:app --reload --port 8000
 ```
 
-### 6. Test API
+### 7. Test API
 
 ```bash
 # Health check
@@ -142,16 +164,34 @@ curl -X POST http://localhost:8000/predict \
 
 Or visit **http://localhost:8000/docs** for the interactive Swagger UI.
 
+### Run Tests
+
+```bash
+pytest
+```
+
+The suite covers preprocessing, the dataset generator (determinism +
+text-priority correlation), the reply templates, the SQLite logging
+layer, and the FastAPI endpoints (via `TestClient`, including the
+graceful-degradation path when model files are missing).
+
 ---
 
 ## Models
 
-| Model | Task | Algorithm | Speed |
-|-------|------|-----------|-------|
-| **Baseline** | Category Classification | TF-IDF + Logistic Regression | Fast (10s train) |
-| **Transformer** | Category Classification | DistilBERT Fine-tuned | Slow (30-60min CPU) |
-| **Priority** | Priority Prediction | TF-IDF + Random Forest | Fast (15s train) |
-| **Reply** | Auto-Reply Generation | Template + Rule-Based | Instant |
+| Model | Task | Algorithm | Test Accuracy | Notes |
+|-------|------|-----------|---------------|-------|
+| **Baseline** | Category Classification | TF-IDF + Logistic Regression | **100%** | Synthetic templates are keyword-separable |
+| **Priority** | Priority Prediction | TF-IDF + Random Forest | **87%** | Learns real signals ("hacked account" -> Urgent); ~85% label-noise ceiling |
+| **Transformer** | Category Classification | DistilBERT Fine-tuned | ~baseline | Optional comparison leg; cannot beat a perfect baseline |
+| **Reply** | Auto-Reply Generation | Template + Rule-Based | deterministic | Keyword-aware, priority-aware |
+
+Honest caveats: because the dataset is synthetic, category separation is
+trivial (100%) and the transformer comparison is mostly a demonstration
+of the training loop -- real ticket data would show a meaningful gap.
+The priority task is learnable but capped near the injected label-noise
+rate, which is intentional: it produces realistic confusion (Urgent
+recall 0.52) instead of fake perfection.
 
 ### Categories
 - Billing Issue
@@ -172,7 +212,7 @@ Or visit **http://localhost:8000/docs** for the interactive Swagger UI.
 |--------|----------|-------------|
 | `POST` | `/predict` | Classify ticket + predict priority + generate reply |
 | `GET` | `/health` | System health and model status |
-| `GET` | `/analytics` | Aggregate prediction analytics |
+| `GET` | `/analytics` | Aggregate prediction analytics (from logged predictions) |
 | `GET` | `/history` | Recent prediction history |
 
 ### Example Response
@@ -181,10 +221,14 @@ Or visit **http://localhost:8000/docs** for the interactive Swagger UI.
 {
   "category": "Billing Issue",
   "priority": "High",
-  "reply": "Dear Customer, Thank you for reaching out regarding your billing concern...",
-  "timestamp": "2025-07-15T10:30:00"
+  "reply": "This has been marked as a high-priority issue.  \n\nHello,  \n\nWe appreciate you bringing this billing issue to our attention regarding the charge of $49.99. ...",
+  "timestamp": "2026-09-16T10:30:00"
 }
 ```
+
+If model artifacts are missing, the API degrades gracefully:
+`/predict` returns `"category": "Unknown (model not loaded)"` and
+`"priority": "Medium"` instead of crashing.
 
 ---
 
@@ -200,14 +244,15 @@ The `data/analytics_export.csv` includes:
 
 ## Tech Stack
 
-- **Python 3.9+**
+- **Python 3.13**
 - **scikit-learn** -- TF-IDF, Logistic Regression, Random Forest
-- **HuggingFace Transformers** -- DistilBERT fine-tuning
+- **HuggingFace Transformers** -- DistilBERT fine-tuning (optional)
 - **FastAPI** -- REST API framework
 - **SQLite** -- Prediction logging database
 - **Pandas / NumPy** -- Data processing
 - **Matplotlib / Seaborn** -- Visualization
 - **NLTK** -- Text preprocessing
+- **Pytest** -- Test suite
 
 ---
 
